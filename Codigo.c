@@ -68,20 +68,9 @@ void Cliente( char * nome, char * ip,char * puerto){
 	inet_pton(AF_INET,ip,&(direccion.sin_addr.s_addr));
         direccion.sin_port= htons(atoi(puerto));
 
-
 	//Conexion y verificacion
 	status = connect(Mysocket, (struct sockaddr *) &direccion, sizeof(direccion));
-        if(status <0){ 
-                printf("\nNo hay conexion" );
-		close(Mysocket);
-		printf("\n");
-                exit(1);}
-	else{
-		printf("\nHay conexion");}
-
-
-	//Conexion para envio de msj y verificacion
-	status=send(Mysocket,nome,strlen(nome)+1,0);
+       
 	if(status<0){
 		printf("\nNo se puede enviar mensajes en este momento");
 		close(Mysocket);
@@ -120,13 +109,15 @@ void EnviarMensaje(){
 	//Variables 
 	char * Ip;
 	char * Puerto;
+	int volverMenu;
+	volverMenu = 0;
 
 	//Se solicita al usuario el nombre del contacto que desea enviar el msj
 	char Destino[50];
 	char * p;
 	p= Destino;
 	char * nombre;
-	printf("Enviar mensaja a: ");
+	printf("Enviar mensaje a: ");
 	scanf("%s",Destino);
 
 	//Se accede al archivo de Contactos para extraer la IP y el puerto
@@ -153,9 +144,11 @@ void EnviarMensaje(){
 			//Se guarda en una variable el nombre
 			nombre = Token;
 			Cliente(nombre,Ip,Puerto);
+			volverMenu=1;
 			break;}}
-
-	printf("\033[01;37m\nNo se encontro el contacto");
+	
+	if(volverMenu==0)
+		printf("\033[01;37m\nNo se encontro el contacto");
 	fflush(stdin);}
 
 
@@ -211,14 +204,6 @@ void Servidor(char * puerto){
 
 		//Recepcion de datos
 		memset(msj,0x0,1500);
-		
-		datoRec = recv(status,msj,1500,0);
-		if(datoRec<0){
-			printf("\nNo se puede leer el mensaje");
-			printf("\n");
-			close(Mysocket);
-			exit(1);}
-		printf("\n Mensaje nuevo de: %s",msj);
 
 		datoRec = recv(status,msj,1500,0);
 		if(datoRec<0){
@@ -226,7 +211,7 @@ void Servidor(char * puerto){
 			printf("\n");
 			close(Mysocket);
 			exit(1);}
-		printf("\n%s",msj);}
+		printf("\033[01;34m\nNuevo mensaje: %s",msj);}
 		
 	//Cerrar socket
 	int off;
@@ -264,7 +249,7 @@ void MenuPrincipal(){
 	printf("\n");
 	printf("\n----Agregar un nuevo contacto[1]---");
 	printf("\n----Enviar un nuevo mensaje[2]-----");
-	printf("\n----Salir[Cualquier tecla]---------");
+	printf("\n----Salir[3]-----------------------");
 	printf("\n");
 	
 	fflush(stdin);
@@ -275,13 +260,35 @@ void MenuPrincipal(){
 	else if (opcion==2){
 		EnviarMensaje();}
 	else 
-		exit(1);}
+		exit(1);
+	MenuPrincipal();}
 
+void *escuchar(void *servidor){;
+        while(1)
+                RecibirMensajes();}
+
+void *llamada(void *menu){;
+        while(1)
+                MenuPrincipal();}
 
 
 //Funcion main
 void main(){
-	while(1){
-		MenuPrincipal();
-	}
+
+	int process;
+	process = fork();
+
+	if(process>=0){
+		if(process==0){
+			pthread_t thread2;
+			char * servidor = "Servidor";
+			pthread_create(&thread2,NULL,escuchar,(void*)servidor);
+			pthread_join(thread2,NULL);}
+		else{    
+			pthread_t thread1;
+			char * cliente = "Cliente";
+			pthread_create(&thread1,NULL,llamada,(void*)cliente);
+			pthread_join(thread1,NULL);}}
+	else{
+		printf("\nFallo en el sistema");}
 	}
