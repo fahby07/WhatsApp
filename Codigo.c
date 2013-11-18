@@ -44,39 +44,62 @@ void AgregarContacto(){
 
 
 
-void Cliente( char * ip,char * puerto){
+void Cliente( char * nome, char * ip,char * puerto){
 
 	int status;
-
-	//Creacion del socket
 	int Mysocket;
-	Mysocket = socket(AF_INET,SOCK_STREAM,0);//Parametros(Protocolo,direccion,puerto)
+	char buffer[1500];
+	struct sockaddr_in direccion;
+
+
+	//Crear socket
+	Mysocket = socket(AF_INET,SOCK_STREAM,0);
+	//Verificar la creacion del socket
 	if(Mysocket>=0){
 		printf("\nSe creo el socket");}
+	else{
+		perror("\nNo se concreto el socket");
+		printf("\n");
+		exit(1);}
 
-	struct sockaddr_in dir;
-	dir.sin_family=AF_INET;
-	inet_pton(AF_INET,ip,&(dir.sin_addr.s_addr));
-        dir.sin_port= htons(atoi(puerto));
 
-	//Conexion
-	status = connect(Mysocket, (struct sockaddr *) &dir, sizeof(dir));
+	//Configuracion del socket
+	direccion.sin_family=AF_INET;
+	inet_pton(AF_INET,ip,&(direccion.sin_addr.s_addr));
+        direccion.sin_port= htons(atoi(puerto));
+
+
+	//Conexion y verificacion
+	status = connect(Mysocket, (struct sockaddr *) &direccion, sizeof(direccion));
         if(status <0){ 
-                printf("\nNo hay conexion\n" );
+                printf("\nNo hay conexion" );
+		close(Mysocket);
+		printf("\n");
                 exit(1);}
 	else{
+		printf("\nHay conexion");}
 
-		char buffer[1500];
+
+	//Conexion para envio de msj y verificacion
+	status=send(Mysocket,nome,strlen(nome)+1,0);
+	if(status<0){
+		printf("\nNo se puede enviar mensajes en este momento");
+		close(Mysocket);
+		printf("\n");
+		exit(1);}
+	else{
+		//Pedir el msj al usuario
 		puts("\033[01;34mEscriba su mensaje: \n");
 		bzero(buffer,1500); // Clean buffer
 		fgets(buffer,1499,stdin);
 		scanf("%1499[^\n]",buffer);
 
 		status = send(Mysocket,buffer,strlen(buffer)+1,0);
-
+		//Verificacion
 		if(status <0){ 
 		        printf("\033[01;37m\nMensaje no enviado"); 
 		        close(Mysocket);
+			printf("\n");
 		        exit(1);}
 		else{
 		        printf("\033[01;37m\nMensaje enviado");}}
@@ -88,17 +111,8 @@ void Cliente( char * ip,char * puerto){
 	if(off==0){
 		printf("\nSe cerro el socket correctamente");}
 
-
-
-	//printf("\nEnviando mensaje %s",buffer);
-	printf("\nIP: %s",ip);
-	printf("\nPuerto: %s", puerto);
 	fflush( stdin );
 }
-
-
-
-
 
 
 void EnviarMensaje(){
@@ -106,7 +120,6 @@ void EnviarMensaje(){
 	//Variables 
 	char * Ip;
 	char * Puerto;
-
 
 	//Se solicita al usuario el nombre del contacto que desea enviar el msj
 	char Destino[50];
@@ -139,7 +152,7 @@ void EnviarMensaje(){
 			Token = strtok (NULL, " ");
 			//Se guarda en una variable el nombre
 			nombre = Token;
-			Cliente(Ip,Puerto);
+			Cliente(nombre,Ip,Puerto);
 			break;}}
 
 	printf("\033[01;37m\nNo se encontro el contacto");
@@ -148,38 +161,73 @@ void EnviarMensaje(){
 
 void Servidor(char * puerto){
 
-	int tam;
 	int Mysocket;
-	Mysocket = socket(AF_INET,SOCK_STREAM,0);
+	struct sockaddr_in Myaddress;
+	struct sockaddr_in Newaddress;
+	int status;
+	int datoRec;
+	int address;
+	char msj[1500];
+	int enlace;
 
 
 	//Creacion del socket
-	if(Mysocket>=0){
-		printf("\nSe creo el socket");}
+	Mysocket = socket(AF_INET,SOCK_STREAM,0);
+	if(Mysocket<0){
+		printf("\nNo se pudo crear el socket");
+		printf("\n");
+		exit(1);}
+	printf("Se creo el socket exitosamente");
+	
 
-	//Asociacion del socket a un puerto
-	struct sockaddr_in dir;
-	dir.sin_family=AF_INET;
-	//dir.sin_port=htons(puerto);
-	dir.sin_addr.s_addr=htonl(INADDR_ANY);
+	//Configuracion del socket
+	Myaddress.sin_family=AF_INET;
+	Myaddress.sin_addr.s_addr=htonl(INADDR_ANY);
+	Myaddress.sin_port = htons(atoi(puerto));
 
-	int Vpuerto;
-	Vpuerto = bind(Mysocket, (struct sockaddr *) &dir, sizeof(dir));
-	if(Vpuerto==0){
-		printf("\nSe vinculo el socket con el puerto");}
 
-	//Escuchar
-	int conexion;
+	//Asociacion con el puerto
+	enlace = bind(Mysocket, (struct sockaddr *) &Myaddress, sizeof(Myaddress));
+	if(enlace<0){
+		printf("\nNo se vinculo el socket con el puerto");
+		printf("\n");
+		close(Mysocket);
+		exit(1);}
+	printf("\nVinculo con el puerto exitoso");
+
+
+	//Ciclo de conexion
 	while(1){
 		listen(Mysocket, 5);
-		tam=sizeof(struct sockaddr_in);
-		conexion=accept(Mysocket, (struct sockaddr *)&dir, &tam);
-                if(conexion >=0){
-                        printf("Conexion exitosa");}
-		else{
-			printf("No se escuha");
-			exit(1);}}
+		address=sizeof(Newaddress);
 
+		status=accept(Mysocket, (struct sockaddr *)&Newaddress, &address);
+                if(status<0){
+                        printf("\nConexion denegada");
+			printf("\n");
+			close(Mysocket);
+			exit(1);}
+		printf("\nConexion aceptada");
+
+		//Recepcion de datos
+		memset(msj,0x0,1500);
+		
+		datoRec = recv(status,msj,1500,0);
+		if(datoRec<0){
+			printf("\nNo se puede leer el mensaje");
+			printf("\n");
+			close(Mysocket);
+			exit(1);}
+		printf("\n Mensaje nuevo de: %s",msj);
+
+		datoRec = recv(status,msj,1500,0);
+		if(datoRec<0){
+			printf("\nError en la recepcion del mensaje");
+			printf("\n");
+			close(Mysocket);
+			exit(1);}
+		printf("\n%s",msj);}
+		
 	//Cerrar socket
 	int off;
 	off=close(Mysocket);
@@ -192,29 +240,22 @@ void Servidor(char * puerto){
 
 void RecibirMensajes(){
 
-	char * msj;
-	char * deqien;
+	char * puerto;
+	char * ip;
 
 	FILE *archivo;
+	archivo=fopen("Config.txt","r");
+	char linea[200];
+	fgets(linea,200,archivo);
 
-	//Se abre el archivo
-	archivo=fopen("Mensajes.txt","r");
-	char caract[100];
+	char * Token;
+	Token = strtok (linea,";");
+	puerto =Token;
+	Token = strtok (NULL, " ");
+	ip = Token;
 
-	while(!feof(archivo)){
-		fgets(caract,100,archivo);
-		char * Token;
-		Token = strtok (caract,";");
-		//Se guarda en una variable la ip
-		msj =Token;
-		Token = strtok (NULL, " ");
-		deqien= Token;
-		printf("\033[01;35m\nestoy recibiendo msj: %s, de %s",msj,deqien);}
-
-	Servidor(deqien);
+	Servidor(puerto);
 	printf("\033[01;37m\n Fin de Mensajes nuevos");}
-
-
 
 
 
@@ -223,8 +264,7 @@ void MenuPrincipal(){
 	printf("\n");
 	printf("\n----Agregar un nuevo contacto[1]---");
 	printf("\n----Enviar un nuevo mensaje[2]-----");
-	printf("\n----Leer nuevos mensajes[3]--------");
-	printf("\n----Salir[4]-----------------------");
+	printf("\n----Salir[Cualquier tecla]---------");
 	printf("\n");
 	
 	fflush(stdin);
@@ -234,17 +274,14 @@ void MenuPrincipal(){
 		AgregarContacto();}
 	else if (opcion==2){
 		EnviarMensaje();}
-	else if (opcion==3){
-		RecibirMensajes();}
-	else
+	else 
 		exit(1);}
-
-
 
 
 
 //Funcion main
 void main(){
 	while(1){
-		MenuPrincipal();}
-	printf("\n");}
+		MenuPrincipal();
+	}
+	}
